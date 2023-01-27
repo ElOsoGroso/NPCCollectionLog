@@ -1,0 +1,381 @@
+package com.collectionlogdisplay;
+
+import com.collectionlogdisplay.collectionlog.CollectionLog;
+import com.collectionlogdisplay.collectionlog.CollectionLogApiClient;
+import com.collectionlogdisplay.collectionlog.CollectionLogItem;
+import com.collectionlogdisplay.ui.NPCCollectionLogPanel;
+import com.collectionlogdisplay.wiki.WikiItem;
+import com.collectionlogdisplay.wiki.WikiScraper;
+import com.google.gson.Gson;
+import com.google.inject.Provides;
+import com.google.inject.Injector;
+
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.lang.reflect.Field;
+import java.util.*;
+import java.util.List;
+import java.util.function.Predicate;
+import javax.inject.Inject;
+
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
+import net.runelite.api.*;
+import net.runelite.api.events.*;
+import net.runelite.client.config.ConfigManager;
+import net.runelite.client.eventbus.EventBus;
+import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ClientShutdown;
+import net.runelite.client.game.ItemManager;
+import net.runelite.client.plugins.Plugin;
+import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.plugins.bank.BankSearch;
+import net.runelite.client.ui.ClientToolbar;
+import net.runelite.client.ui.NavigationButton;
+import net.runelite.client.ui.overlay.OverlayManager;
+import net.runelite.client.ui.overlay.infobox.InfoBoxManager;
+import net.runelite.client.util.ImageUtil;
+
+import static net.runelite.client.util.Text.sanitize;
+
+@Slf4j
+@PluginDescriptor(
+		name = "NPC Collection Log",
+		description = "When entering combat with an NPC, a display of the possible drops and which ones you're missing will appear",
+		tags = {"display", "overlay", "collection", "log"}
+)
+public class NPCCollectionLogPlugin extends Plugin
+{
+	@Getter
+	@Inject
+	private BankSearch bankSearch;
+	@Getter(AccessLevel.PACKAGE)
+	private CollectionLog collectionLog;
+	@Getter(AccessLevel.PACKAGE)
+	private boolean panelInitialized = false;
+	@Getter(AccessLevel.PACKAGE)
+	private ArrayList<WikiItem> collectionLogItemList;
+	@Getter(AccessLevel.PACKAGE)
+	private ArrayList<WikiItem> nonCollLogItemList;
+	@Getter(AccessLevel.PACKAGE)
+	public ArrayList<Item> itemIdList= new ArrayList<>();
+	@Getter(AccessLevel.PACKAGE)
+	public boolean displayPanel;
+	@Getter(AccessLevel.PACKAGE)
+	public boolean collectionLogLoaded;
+	@Getter(AccessLevel.PACKAGE)
+	public boolean fileLoaded;
+	@Getter(AccessLevel.PACKAGE)
+	public int greenTotal;
+	@Getter(AccessLevel.PACKAGE)
+	public int bothTotal;
+	@Getter(AccessLevel.PACKAGE)
+	public int bankGreenTotal;
+	@Getter(AccessLevel.PACKAGE)
+	public int bankBothTotal;
+	@Getter(AccessLevel.PACKAGE)
+	public boolean totalsSet;
+	@Getter(AccessLevel.PACKAGE)
+	public String currentNPC;
+
+	@Inject
+	private EventBus eventBus;
+
+	@Inject
+	@Getter
+	private Bank questBank;
+	@Inject
+	@Getter
+	@Setter
+	private Client client;
+	@Inject
+	private NPCCollectionLogConfig config;
+	@Inject
+	private InfoBoxManager infoBoxManager;
+	@Inject
+	private ItemManager itemManager;
+	private boolean displayNameKnown;
+	private BankTab bankTagsMain;
+	@Inject
+	private OverlayManager overlayManager;
+	@Inject
+	private NPCCollectionLogDropsOverlay collLogOverlay;
+	@Inject
+	private NPCCollectionLogBankDropsOverlay bankLogOverlay;
+	@Inject
+	private NPCCollectionLogPanel panel;
+	@Inject
+	private CollectionLogApiClient apiClient;
+	@Inject
+	private ClientToolbar clientToolbar;
+	@Getter
+	private int lastTickInventoryUpdated = -1;
+	@Getter
+	private BankService bankService;
+	@Getter
+	private int lastTickBankUpdated = -1;
+	@Inject
+	private Gson gson;
+	private NavigationButton navigationButton;
+	public NPCCollectionLogPlugin() {
+	}
+
+
+	@Provides
+	NPCCollectionLogConfig provideConfig(ConfigManager configManager)
+	{
+		return configManager.getConfig(NPCCollectionLogConfig.class);
+	}
+
+
+	@Override
+	public void startUp(){
+		displayNameKnown = false;
+		overlayManager.add(collLogOverlay);
+		overlayManager.add(bankLogOverlay);
+		displayPanel = false;
+		collectionLogLoaded = false;
+		fileLoaded = false;
+		itemIdList.clear();
+		bothTotal = 0;
+		greenTotal = 0;
+
+		panel = new NPCCollectionLogPanel(this);
+
+		navigationButton = NavigationButton
+				.builder()
+				.tooltip("NPC Collection Log")
+				.icon(ImageUtil.loadImageResource(getClass(), "/nav-icon.png"))
+				.priority(1001)
+				.panel(panel)
+				.build();
+		clientToolbar.addNavigation(navigationButton);
+
+	}
+
+	@Override
+	public void shutDown()
+	{
+		overlayManager.remove(collLogOverlay);
+		overlayManager.remove(bankLogOverlay);
+		displayPanel = false;
+		collectionLogLoaded = false;
+		clientToolbar.removeNavigation(navigationButton);
+		fileLoaded = false;
+		itemIdList.clear();
+		bothTotal = 0;
+		greenTotal = 0;
+	}
+	private boolean collectionLogExists(String accountHash)
+	{
+		try
+		{
+			return apiClient.getCollectionLogExists(accountHash);
+		}
+		catch (IOException e) {
+			log.info("Unable to get existing collection log from collectionlog.net");
+		}
+		return false;
+	}
+
+	private boolean collectionLogLookup(String username)
+	{
+		try
+		{
+			this.collectionLog = apiClient.getCollectionLog(sanitize(username));
+//			for (CollectionLogItem cli : this.collectionLog.getCollLogItems()){
+//				log.info(cli.getName()+Integer.toString(cli.getId()));
+//			}
+			return true;
+		}
+		catch (IOException e)
+		{
+			return false;
+		}
+
+	}
+
+	public Color getRenderColorByIDCompare(int ID, ArrayList<CollectionLogItem> collLogItems) {
+		for (CollectionLogItem cli : collLogItems) {
+			if (cli.getId() == ID) {
+				if (cli.isObtained()) {
+					return config.collectionLogObtainedColor();
+				}
+				else{
+					return config.collectionLogMissingColor();
+				}
+			}
+		}
+		return config.collectionLogMissingColor();
+	}
+
+	public Color getBankRenderColorByIDCompare(int ID, List<net.runelite.api.Item> bankItems) {
+		for (net.runelite.api.Item item : bankItems) {
+
+				if (ID == item.getId()) {
+					return config.bankLogObtainedColor();
+				}
+			}
+		return config.bankLogMissingColor();
+	}
+
+	public void setTotalsCollLog(ArrayList<WikiItem> itemList, ArrayList<CollectionLogItem> collLogItems){
+		for(WikiItem wi : itemList){
+			for (CollectionLogItem cli : collLogItems) {
+				if (cli.getId() == wi.getId()) {
+					bothTotal++;
+					if (cli.isObtained()) {
+						greenTotal++;
+					}
+				}
+			}
+		}
+	}
+
+	public void setTotalsNormal(ArrayList<WikiItem> itemList, List<net.runelite.api.Item> bankItems){
+		for(WikiItem wi : itemList){
+			for (net.runelite.api.Item cli : bankItems) {
+				if (cli.getId() == wi.getId()) {
+					bankGreenTotal++;
+				}
+			}
+			bankBothTotal++;
+		}
+	}
+
+	@Subscribe
+	public void onGameStateChanged(final GameStateChanged gameStateChanged) throws FileNotFoundException, IllegalAccessException {
+		final GameState state = gameStateChanged.getGameState();
+
+		if (!fileLoaded && gameStateChanged.getGameState() != GameState.LOGGED_IN)
+		{
+			for (Field f : ItemID.class.getFields()){
+				Item item = new Item((Integer) f.get(new Object()),f.getName());
+				itemIdList.add(item);
+			}
+			displayNameKnown = false;
+			fileLoaded = true;
+			log.info("Loaded the itemIDs");
+		}
+		if (state == GameState.LOGIN_SCREEN)
+		{
+			questBank.saveBankToConfig();
+			questBank.emptyState();
+		}
+
+	}
+	@Subscribe(priority = 100)
+	private void onClientShutdown(ClientShutdown e)
+	{
+		questBank.saveBankToConfig();
+	}
+	@Subscribe
+	public void onGameTick(GameTick event)
+	{
+		if (!displayNameKnown)
+		{
+			Player localPlayer = client.getLocalPlayer();
+			if (localPlayer != null && localPlayer.getName() != null)
+			{
+				displayNameKnown = true;
+				questBank.loadState();
+			}
+		}
+
+	}
+	@Subscribe
+	public void onPlayerSpawned(PlayerSpawned playerSpawned) throws IllegalAccessException {
+		if(!collectionLogLoaded && client.getLocalPlayer() == playerSpawned.getPlayer() && collectionLogExists(String.valueOf(client.getAccountHash()))){
+			boolean success = collectionLogLookup(playerSpawned.getPlayer().getName());
+			if (success) collectionLogLoaded = true;
+		}
+
+	}
+
+	public void splitListByType(ArrayList<WikiItem> wikiList){
+		boolean found = false;
+		collectionLogItemList.clear();
+		nonCollLogItemList.clear();
+		for(WikiItem wi : wikiList){
+			for(CollectionLogItem cli : getCollectionLog().getCollLogItems()){
+				if(wi.getId() == cli.getId()){
+					collectionLogItemList.add(wi);
+					found = true;
+				}
+			}
+			if(!found)
+				nonCollLogItemList.add(wi);
+		}
+
+	}
+
+
+	@Subscribe
+	public void onItemContainerChanged(ItemContainerChanged event)
+	{
+		if (event.getItemContainer() == client.getItemContainer(InventoryID.BANK))
+		{
+			lastTickBankUpdated = client.getTickCount();
+			questBank.updateLocalBank(event.getItemContainer().getItems());
+		}
+
+		if (event.getItemContainer() == client.getItemContainer(InventoryID.INVENTORY))
+		{
+			lastTickInventoryUpdated = client.getTickCount();
+		}
+	}
+	@Subscribe
+	public void onInteractingChanged(InteractingChanged event) {
+		panelInitialized = false;
+		if (!(event.getSource() instanceof NPC)) {
+			return;
+		}
+
+		final NPC sourceNpc = (NPC) event.getSource();
+
+		// the NPC is fighting us
+		if (event.getTarget() == client.getLocalPlayer() && sourceNpc.getCombatLevel() > 0) {
+			collectionLogItemList = new ArrayList<WikiItem>();
+			nonCollLogItemList = new ArrayList<WikiItem>();
+			greenTotal = bothTotal = 0;
+			// panel's already up, don't do it again
+			if (panelInitialized) {
+				return;
+			}
+			log.info("Getting item list for: " +sourceNpc.getName());
+			currentNPC = sourceNpc.getName();
+			infoBoxManager.removeIf(c -> c instanceof ItemInfoBox);
+
+			WikiScraper.getDropsByMonster(sourceNpc.getName(), sourceNpc.getId(),itemIdList).whenCompleteAsync((wikiItemsList, ex) -> {
+				displayPanel = true;
+				splitListByType(wikiItemsList);
+				Predicate<WikiItem> condition = x -> x.getName().equals("Nothing")
+						|| x.getName().toLowerCase().contains(("clue"))
+						|| x.getName().toLowerCase().contains(("coins"))
+						|| x.getName().toLowerCase().contains(("bones")) //TODO: make this into a separate list
+						|| x.getName().toLowerCase().contains(("(medium)"))
+						|| x.getName().toLowerCase().contains(("(easy)"))
+						|| x.getName().toLowerCase().contains(("seed"))
+						|| x.getName().toLowerCase().contains(("raw beef"))
+						|| x.getName().toLowerCase().contains(("grimy"))
+						|| (x.getName().toLowerCase().split(" ").length == 2
+							&& x.getName().toLowerCase().split(" ")[1].contains("rune"));
+				this.collectionLogItemList.removeIf(condition);
+				this.nonCollLogItemList.removeIf(condition);
+//				for (WikiItem wi : collectionLogItemList){
+//					log.info(wi.getName());
+//				}
+
+				setTotalsCollLog(this.collectionLogItemList,getCollectionLog().getCollLogItems());
+				setTotalsNormal(this.nonCollLogItemList,questBank.getBankItems());
+				panelInitialized = true;
+			});
+		}
+
+	}
+
+}

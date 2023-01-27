@@ -1,19 +1,19 @@
 package com.collectionlogdisplay;
 
-import net.runelite.client.plugins.Plugin;
 import net.runelite.client.ui.overlay.infobox.InfoBox;
 
-import javax.annotation.Nonnull;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 
 public class ItemInfoBox extends InfoBox {
     private String name;
     private Color renderColor;
-    public ItemInfoBox(BufferedImage image, CollectionLogNPCDisplayPlugin plugin, String name, Color renderColor) {
+    private String rarity;
+    public ItemInfoBox(BufferedImage image, NPCCollectionLogPlugin plugin, String name, Color renderColor, String rarity) {
         super(image, plugin);
         this.name = name;
         this.renderColor = renderColor;
+        this.rarity = rarity;
     }
 
     public Color getRenderColor(){
@@ -25,7 +25,7 @@ public class ItemInfoBox extends InfoBox {
     }
     @Override
     public String getTooltip() {
-        return name;
+        return name + ": " + rarity;
     }
     @Override
     public Color getTextColor() {

@@ -1,7 +1,6 @@
-package com.collectionlogdisplay;
+package com.collectionlogdisplay.wiki;
 
 import java.io.IOException;
-import java.lang.reflect.Array;
 import java.text.NumberFormat;
 import java.text.ParseException;
 import java.util.*;
@@ -11,9 +10,9 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import net.runelite.api.ChatMessageType;
+import com.collectionlogdisplay.Item;
+import com.collectionlogdisplay.collectionlog.DropTableSection;
 import net.runelite.api.Client;
-import net.runelite.client.Notifier;
 import net.runelite.client.RuneLite;
 import net.runelite.http.api.RuneLiteAPI;
 import okhttp3.*;
@@ -21,17 +20,7 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
-import com.google.inject.Provides;
-import javax.inject.Inject;
-import lombok.extern.slf4j.Slf4j;
-import net.runelite.api.ChatMessageType;
-import net.runelite.api.Client;
-import net.runelite.api.GameState;
-import net.runelite.api.events.GameStateChanged;
-import net.runelite.client.config.ConfigManager;
-import net.runelite.client.eventbus.Subscribe;
-import net.runelite.client.plugins.Plugin;
-import net.runelite.client.plugins.PluginDescriptor;
+
 import javax.inject.Inject;
 
 
@@ -187,7 +176,7 @@ public class WikiScraper {
 	}
 	public static int getId(String name, ArrayList<Item> itemIdList){
 		for (Item item : itemIdList){
-			if(parseNameFromRuneliteFormat(item.name).equals(name)){
+			if(parseNameFromItemIDFormat(item.name).equals(parseNameFromWikiFormat(name))){
 				return item.id;
 			}
 		}
@@ -232,8 +221,11 @@ public class WikiScraper {
 		WikiItem[] result = new WikiItem[wikiItems.size()];
 		return wikiItems.toArray(result);
 	}
-	public static String parseNameFromRuneliteFormat(String name){
-		return (name.toLowerCase().substring(0,1).toUpperCase()+name.toLowerCase().substring(1)).replace("_"," ").replace("'","%27");
+	public static String parseNameFromItemIDFormat(String name){
+		return (name.toLowerCase().substring(0,1).toUpperCase()+name.toLowerCase().substring(1)).replace("_"," ");
+	}
+	public static String parseNameFromWikiFormat(String name){
+		return (name.toLowerCase().substring(0,1).toUpperCase()+name.toLowerCase().substring(1)).replace("'","");
 	}
 	public static WikiItem parseRow(String[] row) {
 		String imageUrl = "";
@@ -254,7 +246,6 @@ public class WikiScraper {
 				// (m) indicates members only, remove because it's not part of actual item name
 				name = name.substring(0, name.length() - 3);
 			}
-			name = parseNameFromRuneliteFormat(name);
 			id = getId(name,itemIdList);
 			NumberFormat nf = NumberFormat.getNumberInstance();
 
@@ -304,7 +295,7 @@ public class WikiScraper {
 			} catch (ParseException ex) {
 			}
 		}
-		return new WikiItem(name, id);
+		return new WikiItem(name, id, rarityStr);
 	}
 
 

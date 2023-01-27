@@ -1,15 +1,12 @@
-package com.collectionlogdisplay;
+package com.collectionlogdisplay.collectionlog;
 
 import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import java.io.IOException;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
-import okhttp3.Call;
-import okhttp3.Callback;
 import okhttp3.HttpUrl;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
@@ -17,7 +14,7 @@ import okhttp3.Response;
 import okhttp3.ResponseBody;
 import okhttp3.Request;
 import okhttp3.RequestBody;
-
+//Part of the client from the Collection Log plugin on the plugin-hub
 @Slf4j
 @Singleton
 public class CollectionLogApiClient
@@ -73,54 +70,6 @@ public class CollectionLogApiClient
         return response.get("exists").getAsBoolean();
     }
 
-    public void createCollectionLog(JsonObject collectionLogData, String accountHash) throws IOException
-    {
-        HttpUrl url = new HttpUrl.Builder()
-                .scheme("https")
-                .host(COLLECTION_LOG_API_BASE)
-                .addPathSegment(COLLECTION_LOG_LOG_PATH)
-                .build();
-
-        JsonObject newCollectionLog = new JsonObject();
-        newCollectionLog.add(COLLECTION_LOG_JSON_KEY, collectionLogData);
-        newCollectionLog.addProperty("runelite_id", accountHash);
-
-        postRequest(url, newCollectionLog);
-    }
-
-    public void updateCollectionLog(JsonObject collectionLogData, String accountHash) throws IOException
-    {
-        HttpUrl url = new HttpUrl.Builder()
-                .scheme("https")
-                .host(COLLECTION_LOG_API_BASE)
-                .addPathSegment(COLLECTION_LOG_LOG_PATH)
-                .addPathSegment(accountHash)
-                .build();
-
-        JsonObject logData = new JsonObject();
-        logData.add(COLLECTION_LOG_JSON_KEY, collectionLogData);
-
-        putRequest(url, logData);
-    }
-
-    public JsonObject getCollectionLogTemplate() throws IOException
-    {
-        HttpUrl url = new HttpUrl.Builder()
-                .scheme("https")
-                .host(COLLECTION_LOG_TEMPLATE_BASE)
-                .addPathSegment(COLLECTION_LOG_TEMPLATE_USER)
-                .addPathSegment(COLLECTION_LOG_TEMPLATE_GIST)
-                .build();
-
-        JsonObject githubRes = githubRequest(url);
-        String content = githubRes.getAsJsonObject("files")
-                .getAsJsonObject("collection_log_template.json")
-                .get("content")
-                .getAsString();
-
-        return new JsonParser().parse(content).getAsJsonObject();
-    }
-
     public CollectionLog getCollectionLog(String username) throws IOException
     {
         HttpUrl url = new HttpUrl.Builder()
@@ -160,31 +109,12 @@ public class CollectionLogApiClient
 
         return apiRequest(request);
     }
-
-    private void putRequest(HttpUrl url, JsonObject putData) throws IOException
-    {
-        MediaType mediaType = MediaType.parse("application/json; charset=utf-8");
-        RequestBody body = RequestBody.create(mediaType, putData.toString());
-        Request request = new Request.Builder()
-                .header("User-Agent", COLLECTION_LOG_USER_AGENT)
-                .url(url)
-                .put(body)
-                .build();
-
-        String errorMessage = "Unable to update collection log: {}";
-        asyncApiRequest(request, requestCallback(errorMessage));
-    }
-
     private JsonObject apiRequest(Request request) throws IOException
     {
         Response response = okHttpClient.newCall(request).execute();
         JsonObject responseJson = processResponse(response);
         response.close();
         return responseJson;
-    }
-
-    private void asyncApiRequest(Request request, Callback callback) {
-        okHttpClient.newCall(request).enqueue(callback);
     }
 
     private JsonObject processResponse(Response response) throws IOException
@@ -200,36 +130,5 @@ public class CollectionLogApiClient
             return null;
         }
         return new JsonParser().parse(resBody.string()).getAsJsonObject();
-    }
-
-    private Callback requestCallback(String errorMessage)
-    {
-        return new Callback() {
-            @Override
-            public void onFailure(Call call, IOException e)
-            {
-                log.warn(errorMessage, e.getMessage());
-            }
-
-            @Override
-            public void onResponse(Call call, Response response)
-            {
-                response.close();
-            }
-        };
-    }
-
-    private JsonObject githubRequest(HttpUrl url) throws IOException
-    {
-        Request request = new Request.Builder()
-                .header("User-Agent", COLLECTION_LOG_USER_AGENT)
-                .url(url)
-                .get()
-                .build();
-
-        Response response =  okHttpClient.newCall(request).execute();
-        JsonObject responseJson = processResponse(response);
-        response.close();
-        return responseJson;
     }
 }

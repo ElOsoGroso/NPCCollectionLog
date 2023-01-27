@@ -1,4 +1,6 @@
-package com.collectionlogdisplay;
+package com.collectionlogdisplay.collectionlog;
+
+import com.collectionlogdisplay.wiki.WikiItem;
 
 import java.util.Map;
 

@@ -31,81 +31,71 @@ import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
 
-@ConfigGroup(CollectionLogNPCDisplayConfig.GROUND_MARKER_CONFIG_GROUP)
-public interface CollectionLogNPCDisplayConfig extends Config
+@ConfigGroup(NPCCollectionLogConfig.MAIN_GROUP)
+public interface NPCCollectionLogConfig extends Config
 {
-	String GROUND_MARKER_CONFIG_GROUP = "groundMarker";
-	String SHOW_IMPORT_EXPORT_KEY_NAME = "showImportExport";
-	String SHOW_CLEAR_KEY_NAME = "showClear";
+	String MAIN_GROUP = "npclog";
+
+
+//	@Alpha
+//	@ConfigItem(
+//			keyName = "itemBackgroundColor",
+//			name = "Background color",
+//			description = "Configures the color of the non-collection-log items"
+//	)
+//	default Color itemBackgroundColor()
+//	{
+//		return Color.BLACK;
+//	}
 
 	@Alpha
 	@ConfigItem(
-			keyName = "markerColor",
-			name = "Tile color",
-			description = "Configures the color of marked tile"
+			keyName = "collectionLogObtainedColor",
+			name = "Collection logged",
+			description = "Sets the color that appears on items that you have obtained from collection log"
 	)
-	default Color markerColor()
+	default Color collectionLogObtainedColor()
 	{
-		return Color.YELLOW;
+		return Color.GREEN;
+	}
+	@Alpha
+	@ConfigItem(
+			keyName = "collectionLogMissingColor",
+			name = "Collection missing",
+			description = "Sets the color that appears on items that you have not obtained from collection log"
+	)
+	default Color collectionLogMissingColor()
+	{
+		return Color.RED;
+	}
+	@Alpha
+	@ConfigItem(
+			keyName = "bankLogObtainedColor",
+			name = "Bank obtained",
+			description = "Sets the color that appears on normal items that you have banked"
+	)
+	default Color bankLogObtainedColor()
+	{
+		return Color.GREEN;
+	}
+	@Alpha
+	@ConfigItem(
+			keyName = "bankLogMissingColor",
+			name = "Bank missing",
+			description = "Sets the color that appears on normal items that you have not banked"
+	)
+	default Color bankLogMissingColor()
+	{
+		return Color.RED;
 	}
 
 	@ConfigItem(
-			keyName = "rememberTileColors",
-			name = "Remember color per tile",
-			description = "Color tiles using the color from time of placement"
+			keyName = "showBankLog",
+			name = "Display bank collection panel",
+			description = "Shows or hides the non collection drops you may want to collect"
 	)
-	default boolean rememberTileColors()
-	{
-		return false;
-	}
-
-	@ConfigItem(
-			keyName = "drawOnMinimap",
-			name = "Draw tiles on minimap",
-			description = "Configures whether marked tiles should be drawn on minimap"
-	)
-	default boolean drawTileOnMinimmap()
-	{
-		return false;
-	}
-
-	@ConfigItem(
-			keyName = SHOW_IMPORT_EXPORT_KEY_NAME,
-			name = "Show Import/Export options",
-			description = "Show the Import/Export options on the minimap right-click menu"
-	)
-	default boolean showImportExport()
+	default boolean showBankLog()
 	{
 		return true;
-	}
-
-	@ConfigItem(
-			keyName = SHOW_CLEAR_KEY_NAME,
-			name = "Show Clear option",
-			description = "Show the Clear option on the minimap right-click menu, which deletes all currently loaded markers"
-	)
-	default boolean showClear()
-	{
-		return false;
-	}
-
-	@ConfigItem(
-			keyName = "borderWidth",
-			name = "Border Width",
-			description = "Width of the marked tile border"
-	)
-	default double borderWidth()
-	{
-		return 2;
-	}
-
-	@ConfigItem(
-			keyName = "fillOpacity",
-			name = "Fill Opacity",
-			description = "Opacity of the tile fill color"
-	)
-	default int fillOpacity()
-	{
-		return 50;
 	}
 }

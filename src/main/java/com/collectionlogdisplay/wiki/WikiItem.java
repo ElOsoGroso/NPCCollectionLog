@@ -1,4 +1,4 @@
-package com.collectionlogdisplay;
+package com.collectionlogdisplay.wiki;
 
 
 import java.text.NumberFormat;
@@ -22,9 +22,10 @@ public class WikiItem {
 
 	NumberFormat nf = NumberFormat.getNumberInstance();
 
-	public WikiItem(String name, int id) {
+	public WikiItem(String name, int id, String rarityStr) {
 		this.name = name;
 		this.id = id;
+		this.rarityStr = rarityStr;
 	}
 	public int getId(){
 		return id;

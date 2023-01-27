@@ -1,4 +1,4 @@
-package com.collectionlogdisplay;
+package com.collectionlogdisplay.collectionlog;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
