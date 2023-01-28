@@ -15,6 +15,10 @@ import org.apache.commons.lang3.StringUtils;
 import javax.inject.Inject;
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Map;
 
 public class NPCCollectionLogBankDropsOverlay extends OverlayPanel {
     private final NPCCollectionLogPlugin plugin;
@@ -59,6 +63,7 @@ public class NPCCollectionLogBankDropsOverlay extends OverlayPanel {
         g.dispose();
         return scaledImage;
     }
+
     @Override
     public Dimension render(Graphics2D graphics) {
         if (!config.showBankLog() || !plugin.isDisplayPanel() || plugin.getNonCollLogItemList().size() == 0) {
@@ -71,16 +76,17 @@ public class NPCCollectionLogBankDropsOverlay extends OverlayPanel {
 
             obtainedItems = (plugin.getBankGreenTotal() < plugin.getBankBothTotal()) ?
                     LineComponent.builder()
-                        .left(" Obtained Items: ")
+                        .left("Obtained Items: ")
                         .leftColor(Color.white)
                         .right(plugin.getBankGreenTotal() + "/" + plugin.getBankBothTotal())
                         .rightColor(Color.WHITE).build()
                     : LineComponent.builder()
-                        .left(" Obtained Items: ")
+                        .left("Obtained Items: ")
                         .leftColor(Color.white)
                         .right(plugin.getBankGreenTotal() + "/" + plugin.getBankBothTotal())
                         .rightColor(Color.GREEN).build()
             ;
+            ArrayList<InfoBoxComponent> ibcs = new ArrayList<InfoBoxComponent>();
 
             if(plugin.getNonCollLogItemList().size() < 4) {
 
@@ -88,8 +94,9 @@ public class NPCCollectionLogBankDropsOverlay extends OverlayPanel {
                     InfoBoxComponent infoBoxComponent = new InfoBoxComponent();
                     ItemInfoBox box = new ItemInfoBox(itemManager
                             .getImage(wi.getId()),plugin, wi.getName(),
-                            plugin.getBankRenderColorByIDCompare(wi.getId(),
-                            plugin.getQuestBank().getBankItems()),
+                            plugin.getBankRenderColorByIDCompare(
+                                    wi.getId(),
+                                    plugin.bankAndInventory),
                             wi.getRarityStr());
                     infoBoxComponent.setText(box.getText());
                     infoBoxComponent.setColor(box.getRenderColor());
@@ -97,7 +104,7 @@ public class NPCCollectionLogBankDropsOverlay extends OverlayPanel {
                     infoBoxComponent.setImage(box.getImage());
                     infoBoxComponent.setTooltip(box.getTooltip());
                     infoBoxComponent.setInfoBox(box);
-                    infoBoxPanel.getChildren().add(infoBoxComponent);
+                    ibcs.add(infoBoxComponent);
                 }
                 for (int i = 0; i<4-plugin.getNonCollLogItemList().size();i++){
                     InfoBoxComponent infoBoxComponent = new InfoBoxComponent();
@@ -107,7 +114,7 @@ public class NPCCollectionLogBankDropsOverlay extends OverlayPanel {
                     infoBoxComponent.setBackgroundColor(box.getRenderColor());
                     infoBoxComponent.setImage(box.getImage());
                     infoBoxComponent.setInfoBox(box);
-                    infoBoxPanel.getChildren().add(infoBoxComponent);
+                    ibcs.add(infoBoxComponent);
                 }
             }
             else{
@@ -116,8 +123,9 @@ public class NPCCollectionLogBankDropsOverlay extends OverlayPanel {
                     ItemInfoBox box = new ItemInfoBox(itemManager.getImage(wi.getId()),
                             plugin,
                             wi.getName(),
-                            plugin.getBankRenderColorByIDCompare(wi.getId(),
-                            plugin.getQuestBank().getBankItems()),
+                            plugin.getBankRenderColorByIDCompare(
+                                    wi.getId(),
+                                    plugin.bankAndInventory),
                             wi.getRarityStr());
                     infoBoxComponent.setText(box.getText());
                     infoBoxComponent.setColor(box.getRenderColor());
@@ -125,8 +133,34 @@ public class NPCCollectionLogBankDropsOverlay extends OverlayPanel {
                     infoBoxComponent.setImage(box.getImage());
                     infoBoxComponent.setTooltip(box.getTooltip());
                     infoBoxComponent.setInfoBox(box);
-                    infoBoxPanel.getChildren().add(infoBoxComponent);
+                    ibcs.add(infoBoxComponent);
                 }
+            }
+
+            Collections.sort(ibcs,new Comparator<InfoBoxComponent>() {
+                @Override
+                public int compare(InfoBoxComponent o1, InfoBoxComponent o2) {
+                    return Integer.compare(getMapScore(o1), getMapScore(o2));
+                }
+
+                private int getMapScore(InfoBoxComponent ibc) {
+                    Color missingBank = config.bankLogMissingColor();
+                    Color missingLog = config.collectionLogMissingColor();
+                    Color obtainedBank = config.bankLogObtainedColor();
+                    Color obtainedLog = config.collectionLogObtainedColor();
+                    boolean sortRedFirst = config.sortRedFirst();
+                    final Color color = ((ItemInfoBox)ibc.getInfoBox()).getRenderColor();
+                        if (color.equals(missingBank) || color.equals(missingLog)) {
+                            return sortRedFirst ? 0 : 1;
+                        } else if (color.equals(obtainedBank) || color.equals(obtainedLog)) {
+                            return sortRedFirst ? 1 : 0;
+                        }
+                    return 2;
+                }
+            });
+
+            for(InfoBoxComponent ibc : ibcs){
+                infoBoxPanel.getChildren().add(ibc);
             }
 
             titleAndLines = SplitComponent.builder()
@@ -173,7 +207,7 @@ public class NPCCollectionLogBankDropsOverlay extends OverlayPanel {
             infoBoxPanel.getChildren().clear();
             titlePanel.getChildren().clear();
             panelComponent.getChildren().clear();
-            plugin.totalsSet = true;
+            plugin.bankTotalsSet = true;
             return dimension;
         }
     }

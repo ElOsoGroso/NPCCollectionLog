@@ -8,10 +8,8 @@ import com.collectionlogdisplay.wiki.WikiItem;
 import com.collectionlogdisplay.wiki.WikiScraper;
 import com.google.gson.Gson;
 import com.google.inject.Provides;
-import com.google.inject.Injector;
 
 import java.awt.*;
-import java.awt.image.BufferedImage;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -39,6 +37,7 @@ import net.runelite.client.ui.NavigationButton;
 import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.ui.overlay.infobox.InfoBoxManager;
 import net.runelite.client.util.ImageUtil;
+import org.apache.commons.lang3.StringUtils;
 
 import static net.runelite.client.util.Text.sanitize;
 
@@ -80,6 +79,15 @@ public class NPCCollectionLogPlugin extends Plugin
 	@Getter(AccessLevel.PACKAGE)
 	public boolean totalsSet;
 	@Getter(AccessLevel.PACKAGE)
+	public String previousNPCName;
+
+	@Getter
+	public net.runelite.api.Item[] inventoryItems;
+	@Getter
+	public ArrayList<net.runelite.api.Item> bankAndInventory;
+	@Getter(AccessLevel.PACKAGE)
+	public boolean bankTotalsSet;
+	@Getter(AccessLevel.PACKAGE)
 	public String currentNPC;
 
 	@Inject
@@ -87,7 +95,7 @@ public class NPCCollectionLogPlugin extends Plugin
 
 	@Inject
 	@Getter
-	private Bank questBank;
+	private Bank bank;
 	@Inject
 	@Getter
 	@Setter
@@ -99,9 +107,9 @@ public class NPCCollectionLogPlugin extends Plugin
 	@Inject
 	private ItemManager itemManager;
 	private boolean displayNameKnown;
-	private BankTab bankTagsMain;
 	@Inject
 	private OverlayManager overlayManager;
+
 	@Inject
 	private NPCCollectionLogDropsOverlay collLogOverlay;
 	@Inject
@@ -115,14 +123,10 @@ public class NPCCollectionLogPlugin extends Plugin
 	@Getter
 	private int lastTickInventoryUpdated = -1;
 	@Getter
-	private BankService bankService;
-	@Getter
 	private int lastTickBankUpdated = -1;
 	@Inject
 	private Gson gson;
 	private NavigationButton navigationButton;
-	public NPCCollectionLogPlugin() {
-	}
 
 
 	@Provides
@@ -169,6 +173,17 @@ public class NPCCollectionLogPlugin extends Plugin
 		itemIdList.clear();
 		bothTotal = 0;
 		greenTotal = 0;
+	}
+	public void getCombinedBankInventory(){
+		bankAndInventory = new ArrayList<net.runelite.api.Item>();
+		for(net.runelite.api.Item item : bank.getBankItems()){
+			bankAndInventory.add(item);
+		}
+		for(net.runelite.api.Item item : inventoryItems){
+			if(!bankAndInventory.contains(item)){
+				bankAndInventory.add(item);
+			}
+		}
 	}
 	private boolean collectionLogExists(String accountHash)
 	{
@@ -224,6 +239,7 @@ public class NPCCollectionLogPlugin extends Plugin
 	}
 
 	public void setTotalsCollLog(ArrayList<WikiItem> itemList, ArrayList<CollectionLogItem> collLogItems){
+		bothTotal = greenTotal = 0;
 		for(WikiItem wi : itemList){
 			for (CollectionLogItem cli : collLogItems) {
 				if (cli.getId() == wi.getId()) {
@@ -237,6 +253,7 @@ public class NPCCollectionLogPlugin extends Plugin
 	}
 
 	public void setTotalsNormal(ArrayList<WikiItem> itemList, List<net.runelite.api.Item> bankItems){
+		bankGreenTotal = bankBothTotal = 0;
 		for(WikiItem wi : itemList){
 			for (net.runelite.api.Item cli : bankItems) {
 				if (cli.getId() == wi.getId()) {
@@ -263,26 +280,36 @@ public class NPCCollectionLogPlugin extends Plugin
 		}
 		if (state == GameState.LOGIN_SCREEN)
 		{
-			questBank.saveBankToConfig();
-			questBank.emptyState();
+			bank.saveBankToConfig();
+			bank.emptyState();
 		}
 
 	}
 	@Subscribe(priority = 100)
 	private void onClientShutdown(ClientShutdown e)
 	{
-		questBank.saveBankToConfig();
+		bank.saveBankToConfig();
 	}
 	@Subscribe
 	public void onGameTick(GameTick event)
 	{
+		if(!StringUtils.isEmpty(previousNPCName)){
+			boolean found = false;
+			for (NPC npc : client.getNpcs()){
+				if(npc.getName().equals(previousNPCName)){
+					found = true;
+				}
+			}
+			if(!found)
+				displayPanel = false;
+		}
 		if (!displayNameKnown)
 		{
 			Player localPlayer = client.getLocalPlayer();
 			if (localPlayer != null && localPlayer.getName() != null)
 			{
 				displayNameKnown = true;
-				questBank.loadState();
+				bank.loadState();
 			}
 		}
 
@@ -292,6 +319,7 @@ public class NPCCollectionLogPlugin extends Plugin
 		if(!collectionLogLoaded && client.getLocalPlayer() == playerSpawned.getPlayer() && collectionLogExists(String.valueOf(client.getAccountHash()))){
 			boolean success = collectionLogLookup(playerSpawned.getPlayer().getName());
 			if (success) collectionLogLoaded = true;
+			bank.loadState();
 		}
 
 	}
@@ -320,12 +348,18 @@ public class NPCCollectionLogPlugin extends Plugin
 		if (event.getItemContainer() == client.getItemContainer(InventoryID.BANK))
 		{
 			lastTickBankUpdated = client.getTickCount();
-			questBank.updateLocalBank(event.getItemContainer().getItems());
+			bank.updateLocalBank(event.getItemContainer().getItems());
 		}
 
 		if (event.getItemContainer() == client.getItemContainer(InventoryID.INVENTORY))
 		{
 			lastTickInventoryUpdated = client.getTickCount();
+			if(bank.getBankItems().size()>0) {
+				ItemContainer container = event.getItemContainer();
+				inventoryItems = container.getItems();
+				getCombinedBankInventory();
+				setTotalsNormal(this.nonCollLogItemList, bankAndInventory);
+			}
 		}
 	}
 	@Subscribe
@@ -339,9 +373,25 @@ public class NPCCollectionLogPlugin extends Plugin
 
 		// the NPC is fighting us
 		if (event.getTarget() == client.getLocalPlayer() && sourceNpc.getCombatLevel() > 0) {
-			collectionLogItemList = new ArrayList<WikiItem>();
-			nonCollLogItemList = new ArrayList<WikiItem>();
-			greenTotal = bothTotal = 0;
+			if(sourceNpc.getName() != null)
+				previousNPCName = sourceNpc.getName();
+			//If the list is null, make it empty, if it is the same as the previous npc we don't want to reload
+			if(collectionLogItemList == null){
+				greenTotal = bothTotal = bankGreenTotal = bankBothTotal = 0;
+				collectionLogItemList = new ArrayList<WikiItem>();
+			}
+			else if (!StringUtils.isEmpty(previousNPCName) && sourceNpc.getName().equals(previousNPCName)){
+				//do nothing
+			}
+
+			if(nonCollLogItemList == null){
+				greenTotal = bothTotal = bankGreenTotal = bankBothTotal = 0;
+				nonCollLogItemList = new ArrayList<WikiItem>();
+			}
+			else if (!StringUtils.isEmpty(previousNPCName) && sourceNpc.getName().equals(previousNPCName)){
+				//do nothing
+			}
+
 			// panel's already up, don't do it again
 			if (panelInitialized) {
 				return;
@@ -366,12 +416,14 @@ public class NPCCollectionLogPlugin extends Plugin
 							&& x.getName().toLowerCase().split(" ")[1].contains("rune"));
 				this.collectionLogItemList.removeIf(condition);
 				this.nonCollLogItemList.removeIf(condition);
-//				for (WikiItem wi : collectionLogItemList){
-//					log.info(wi.getName());
-//				}
+
+				ItemContainer container = client.getItemContainer(InventoryID.INVENTORY);
+				this.inventoryItems = container.getItems();
+				getCombinedBankInventory();
 
 				setTotalsCollLog(this.collectionLogItemList,getCollectionLog().getCollLogItems());
-				setTotalsNormal(this.nonCollLogItemList,questBank.getBankItems());
+				setTotalsNormal(this.nonCollLogItemList,bankAndInventory);
+
 				panelInitialized = true;
 			});
 		}

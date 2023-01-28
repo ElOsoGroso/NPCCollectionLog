@@ -98,4 +98,13 @@ public interface NPCCollectionLogConfig extends Config
 	{
 		return true;
 	}
+	@ConfigItem(
+			keyName = "sortRedFirst",
+			name = "Show Missing Items First",
+			description = "Sets the sort order of the set colors"
+	)
+	default boolean sortRedFirst()
+	{
+		return true;
+	}
 }

@@ -15,6 +15,9 @@ import org.apache.commons.lang3.StringUtils;
 import javax.inject.Inject;
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 
 public class NPCCollectionLogDropsOverlay extends OverlayPanel {
     private final NPCCollectionLogPlugin plugin;
@@ -92,6 +95,7 @@ public class NPCCollectionLogDropsOverlay extends OverlayPanel {
                         .rightColor(Color.GREEN).build()
             ;
 
+            ArrayList<InfoBoxComponent> ibcs = new ArrayList<InfoBoxComponent>();
 
             if(plugin.getCollectionLogItemList().size() < 4) {
                 for (WikiItem wi : plugin.getCollectionLogItemList()) {
@@ -106,7 +110,7 @@ public class NPCCollectionLogDropsOverlay extends OverlayPanel {
                     infoBoxComponent.setImage(box.getImage());
                     infoBoxComponent.setTooltip(box.getTooltip());
                     infoBoxComponent.setInfoBox(box);
-                    infoBoxPanel.getChildren().add(infoBoxComponent);
+                    ibcs.add(infoBoxComponent);
                 }
                 for (int i = 0; i<4-plugin.getCollectionLogItemList().size();i++){
                     InfoBoxComponent infoBoxComponent = new InfoBoxComponent();
@@ -116,7 +120,8 @@ public class NPCCollectionLogDropsOverlay extends OverlayPanel {
                     infoBoxComponent.setBackgroundColor(box.getRenderColor());
                     infoBoxComponent.setImage(box.getImage());
                     infoBoxComponent.setInfoBox(box);
-                    infoBoxPanel.getChildren().add(infoBoxComponent);
+                    ibcs.add(infoBoxComponent);
+
                 }
             }
             else {
@@ -129,8 +134,33 @@ public class NPCCollectionLogDropsOverlay extends OverlayPanel {
                     infoBoxComponent.setImage(box.getImage());
                     infoBoxComponent.setTooltip(box.getTooltip());
                     infoBoxComponent.setInfoBox(box);
-                    infoBoxPanel.getChildren().add(infoBoxComponent);
+                    ibcs.add(infoBoxComponent);
                 }
+            }
+
+            Collections.sort(ibcs,new Comparator<InfoBoxComponent>() {
+                @Override
+                public int compare(InfoBoxComponent o1, InfoBoxComponent o2) {
+                    return Integer.compare(getMapScore(o1), getMapScore(o2));
+                }
+
+                private int getMapScore(InfoBoxComponent ibc) {
+                    Color missingBank = config.bankLogMissingColor();
+                    Color missingLog = config.collectionLogMissingColor();
+                    Color obtainedBank = config.bankLogObtainedColor();
+                    Color obtainedLog = config.collectionLogObtainedColor();
+                    final Color color = ((ItemInfoBox)ibc.getInfoBox()).getRenderColor();
+                    if (color.equals(missingBank) || color.equals(missingLog)) {
+                        return 0;
+                    } else if (color.equals(obtainedBank) || color.equals(obtainedLog)) {
+                        return 1;
+                    }
+                    return 2;
+                }
+            });
+
+            for(InfoBoxComponent ibc : ibcs){
+                infoBoxPanel.getChildren().add(ibc);
             }
 
             titleComponent = SplitComponent.builder()

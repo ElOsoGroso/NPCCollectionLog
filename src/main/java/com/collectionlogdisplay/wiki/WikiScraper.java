@@ -222,7 +222,13 @@ public class WikiScraper {
 		return wikiItems.toArray(result);
 	}
 	public static String parseNameFromItemIDFormat(String name){
-		return (name.toLowerCase().substring(0,1).toUpperCase()+name.toLowerCase().substring(1)).replace("_"," ");
+		if(name.equals("BLACK_MASK_10")){
+			return "Black mask (10)";
+		}
+		else{
+			return (name.toLowerCase().substring(0,1).toUpperCase()+name.toLowerCase().substring(1)).replace("_"," ");
+		}
+
 	}
 	public static String parseNameFromWikiFormat(String name){
 		return (name.toLowerCase().substring(0,1).toUpperCase()+name.toLowerCase().substring(1)).replace("'","");
