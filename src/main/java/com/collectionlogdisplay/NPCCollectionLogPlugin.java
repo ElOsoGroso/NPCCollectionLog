@@ -419,6 +419,9 @@ public class NPCCollectionLogPlugin extends Plugin
 
 				ItemContainer container = client.getItemContainer(InventoryID.INVENTORY);
 				this.inventoryItems = container.getItems();
+				if(bank.getBankItems().size()==0){
+					bank.loadState();
+				}
 				getCombinedBankInventory();
 
 				setTotalsCollLog(this.collectionLogItemList,getCollectionLog().getCollLogItems());
