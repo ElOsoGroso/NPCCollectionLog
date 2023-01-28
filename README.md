@@ -1,6 +1,6 @@
 # NPC Collection Log
 
-This plugin shows a panel when you initiate combat with any NPC, showing information about which items are possible to received from them, and which ones you've already got in your collection log, or in your bank.
+This plugin shows a panel when you initiate combat with any NPC, showing information about which items are possible to receive from them, and which ones you've already got in your collection log, or in your bank.
 
 ## Important Usage Details
 
