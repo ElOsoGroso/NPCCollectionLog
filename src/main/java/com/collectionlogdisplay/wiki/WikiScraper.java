@@ -175,11 +175,16 @@ public class WikiScraper {
 		return future;
 	}
 	public static int getId(String name, ArrayList<Item> itemIdList){
-		for (Item item : itemIdList){
-			if(parseNameFromItemIDFormat(item.name).equals(parseNameFromWikiFormat(name))){
-				return item.id;
-			}
+		try{
+			for (Item item : itemIdList){
+				if(item.name.equals(parseNameFromWikiFormat(name))){
+					return item.id;
+				}
+			}}
+		catch (Exception e){
+			return -1;
 		}
+
 		return -1;
 	}
 	private static WikiItem[] getTableItems(int tableIndex, String selector) {
@@ -221,17 +226,9 @@ public class WikiScraper {
 		WikiItem[] result = new WikiItem[wikiItems.size()];
 		return wikiItems.toArray(result);
 	}
-	public static String parseNameFromItemIDFormat(String name){
-		if(name.equals("BLACK_MASK_10")){
-			return "Black mask (10)";
-		}
-		else{
-			return (name.toLowerCase().substring(0,1).toUpperCase()+name.toLowerCase().substring(1)).replace("_"," ");
-		}
 
-	}
 	public static String parseNameFromWikiFormat(String name){
-		return (name.toLowerCase().substring(0,1).toUpperCase()+name.toLowerCase().substring(1)).replace("'","");
+		return (name.toLowerCase().substring(0,1).toUpperCase()+name.toLowerCase().substring(1));
 	}
 	public static WikiItem parseRow(String[] row) {
 		String imageUrl = "";

@@ -6,13 +6,10 @@ import com.collectionlogdisplay.collectionlog.CollectionLogItem;
 import com.collectionlogdisplay.ui.NPCCollectionLogPanel;
 import com.collectionlogdisplay.wiki.WikiItem;
 import com.collectionlogdisplay.wiki.WikiScraper;
-import com.google.gson.Gson;
 import com.google.inject.Provides;
 
 import java.awt.*;
-import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.util.*;
 import java.util.List;
 import java.util.function.Predicate;
@@ -49,9 +46,6 @@ import static net.runelite.client.util.Text.sanitize;
 )
 public class NPCCollectionLogPlugin extends Plugin
 {
-	@Getter
-	@Inject
-	private BankSearch bankSearch;
 	@Getter(AccessLevel.PACKAGE)
 	private CollectionLog collectionLog;
 	@Getter(AccessLevel.PACKAGE)
@@ -67,7 +61,7 @@ public class NPCCollectionLogPlugin extends Plugin
 	@Getter(AccessLevel.PACKAGE)
 	public boolean collectionLogLoaded;
 	@Getter(AccessLevel.PACKAGE)
-	public boolean fileLoaded;
+	public boolean itemsLoaded;
 	@Getter(AccessLevel.PACKAGE)
 	public int greenTotal;
 	@Getter(AccessLevel.PACKAGE)
@@ -124,8 +118,6 @@ public class NPCCollectionLogPlugin extends Plugin
 	private int lastTickInventoryUpdated = -1;
 	@Getter
 	private int lastTickBankUpdated = -1;
-	@Inject
-	private Gson gson;
 	private NavigationButton navigationButton;
 
 
@@ -135,7 +127,6 @@ public class NPCCollectionLogPlugin extends Plugin
 		return configManager.getConfig(NPCCollectionLogConfig.class);
 	}
 
-
 	@Override
 	public void startUp(){
 		displayNameKnown = false;
@@ -143,7 +134,7 @@ public class NPCCollectionLogPlugin extends Plugin
 		overlayManager.add(bankLogOverlay);
 		displayPanel = false;
 		collectionLogLoaded = false;
-		fileLoaded = false;
+		itemsLoaded = false;
 		itemIdList.clear();
 		bothTotal = 0;
 		greenTotal = 0;
@@ -169,7 +160,7 @@ public class NPCCollectionLogPlugin extends Plugin
 		displayPanel = false;
 		collectionLogLoaded = false;
 		clientToolbar.removeNavigation(navigationButton);
-		fileLoaded = false;
+		itemsLoaded = false;
 		itemIdList.clear();
 		bothTotal = 0;
 		greenTotal = 0;
@@ -265,17 +256,19 @@ public class NPCCollectionLogPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onGameStateChanged(final GameStateChanged gameStateChanged) throws FileNotFoundException, IllegalAccessException {
+	public void onGameStateChanged(final GameStateChanged gameStateChanged) {
 		final GameState state = gameStateChanged.getGameState();
 
-		if (!fileLoaded && gameStateChanged.getGameState() != GameState.LOGGED_IN)
+		if (!itemsLoaded && gameStateChanged.getGameState() != GameState.LOGGED_IN)
 		{
-			for (Field f : ItemID.class.getFields()){
-				Item item = new Item((Integer) f.get(new Object()),f.getName());
-				itemIdList.add(item);
+			for(int i = 0; i< client.getItemCount(); i++){
+				ItemComposition ic = client.getItemDefinition(i);
+				if(ic!=null){
+					itemIdList.add(new Item(ic.getId(),ic.getName()));
+				}
 			}
 			displayNameKnown = false;
-			fileLoaded = true;
+			itemsLoaded = true;
 			log.info("Loaded the itemIDs");
 		}
 		if (state == GameState.LOGIN_SCREEN)
