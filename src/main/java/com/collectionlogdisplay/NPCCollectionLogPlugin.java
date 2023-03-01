@@ -12,7 +12,10 @@ import java.awt.*;
 import java.io.IOException;
 import java.util.*;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import javax.inject.Inject;
 
 import lombok.AccessLevel;
@@ -120,6 +123,10 @@ public class NPCCollectionLogPlugin extends Plugin
 	private int lastTickBankUpdated = -1;
 	private NavigationButton navigationButton;
 
+	public static <T> Predicate<T> distinctByKey(Function<? super T, ?> keyExtractor) {
+		Set<Object> seen = ConcurrentHashMap.newKeySet();
+		return t -> seen.add(keyExtractor.apply(t));
+	}
 
 	@Provides
 	NPCCollectionLogConfig provideConfig(ConfigManager configManager)
@@ -322,7 +329,8 @@ public class NPCCollectionLogPlugin extends Plugin
 		collectionLogItemList.clear();
 		nonCollLogItemList.clear();
 		for(WikiItem wi : wikiList){
-			for(CollectionLogItem cli : getCollectionLog().getCollLogItems()){
+			found = false;
+			for(CollectionLogItem cli : getCollectionLog().getCollLogItems().stream().filter(distinctByKey(CollectionLogItem::getId)).collect(Collectors.toList())){
 				if(wi.getId() == cli.getId()){
 					collectionLogItemList.add(wi);
 					found = true;
